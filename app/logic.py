@@ -2527,7 +2527,37 @@ def fetch_rss_movies(limit=30):
                             except Exception as create_error:
                                 # Handle race condition: sync_movies may have already created this entry
                                 if "UNIQUE constraint failed" in str(create_error):
-                                    logger.info(f"Movie '{title}' ({year}) already added to DB by sync_movies (race condition). Skipping duplicate.")
+                                    logger.info(f"Movie '{title}' ({year}) already added to DB by sync_movies (race condition). Updating with RSS metadata.")
+                                    
+                                    # Update the existing entry with proper metadata
+                                    try:
+                                        existing_movie = Movie.get(Movie.torrent_hash == torrent_hash)
+                                        
+                                        # Update all metadata fields
+                                        existing_movie.title = metadata.get('title', title) if metadata else title
+                                        existing_movie.year = metadata.get('year', year) if metadata else year
+                                        existing_movie.poster_path = poster_local
+                                        existing_movie.backdrop_path = backdrop_local
+                                        existing_movie.overview = metadata.get('overview') if metadata else "Auto-downloaded from RSS"
+                                        existing_movie.runtime = metadata.get('runtime') if metadata else 0
+                                        existing_movie.genres = metadata.get('genres') if metadata else None
+                                        existing_movie.cast = metadata.get('cast') if metadata else None
+                                        existing_movie.crew = metadata.get('crew') if metadata else None
+                                        existing_movie.vote_average = metadata.get('vote_average') if metadata else 0
+                                        existing_movie.vote_count = metadata.get('vote_count') if metadata else 0
+                                        existing_movie.imdb_id = metadata.get('imdb_id') if metadata else None
+                                        existing_movie.imdb_rating = metadata.get('imdb_rating') if metadata else None
+                                        existing_movie.imdb_votes = metadata.get('imdb_votes') if metadata else None
+                                        existing_movie.metadata_updated_at = datetime.now()
+                                        existing_movie.torrent_name = torrent_name
+                                        
+                                        # Keep the current status since sync_movies determines it based on torrent state
+                                        
+                                        existing_movie.save()
+                                        logger.info(f"Successfully updated existing movie '{title}' ({year}) with RSS metadata")
+                                        
+                                    except Exception as update_error:
+                                        logger.error(f"Failed to update existing movie '{title}' with RSS metadata: {update_error}")
                                 else:
                                     logger.error(f"Error creating DB entry for '{title}': {create_error}")
                             
